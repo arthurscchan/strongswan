@@ -14,7 +14,6 @@
  * for more details.
  */
 
-#include <assert.h>
 #include <library.h>
 #include <encoding/message.h>
 
@@ -29,7 +28,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
 {
 	message_t *message;
 	packet_t *packet;
-abort();
+
 	/* Minimum IKE header size for fuzzing meaningful IKE headers effectively */
 	if (len < 28)
 	{
