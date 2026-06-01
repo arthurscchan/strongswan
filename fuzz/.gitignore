@@ -11,5 +11,7 @@ fuzz_ocsp_rsp_def
 fuzz_pa_tnc
 fuzz_pb_tnc
 fuzz_radius
+fuzz_sshkey_cus
+fuzz_sshkey_def
 fuzz_tls
 fuzz_vici
