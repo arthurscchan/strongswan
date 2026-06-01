@@ -60,7 +60,7 @@ fuzzers_with_def = $(fuzzers_with_plugins:%=%_def)
 fuzzers_with_cus = $(fuzzers_with_plugins:%=%_cus)
 
 fuzzers_no_plugins = \
-	fuzz_ids fuzz_ike fuzz_pa_tnc fuzz_pb_tnc fuzz_radius fuzz_tls fuzz_vici
+	fuzz_ids fuzz_ike fuzz_pa_tnc fuzz_pb_tnc fuzz_proposal fuzz_radius fuzz_tls fuzz_vici
 
 ALL_FUZZERS=$(fuzzers_with_def) $(fuzzers_with_cus) $(fuzzers_no_plugins)
 
@@ -103,6 +103,9 @@ fuzz_ids: fuzz_ids.c ${libfuzzer}
 
 fuzz_ike: fuzz_ike.c ${libfuzzer}
 	$(CC) $(AM_CPPFLAGS) $(CFLAGS) -o $@ $< $(charon_ldflags)
+
+fuzz_proposal: fuzz_proposal.c ${libfuzzer}
+	$(CC) $(fuzz_cppflags_def) $(CFLAGS) -o $@ $< $(fuzz_ldflags)
 
 fuzz_radius: fuzz_radius.c ${libfuzzer}
 	$(CC) $(fuzz_cppflags_def) $(CFLAGS) -o $@ $< $(radius_ldflags)
