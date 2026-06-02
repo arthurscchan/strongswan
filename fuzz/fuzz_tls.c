@@ -154,15 +154,16 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
 	char out[TLS_MAX_FRAGMENT_LEN + 2048];
 	size_t outlen, msglen;
 	bool is_server;
+	uint16_t chunk_len;
+	int iter;
 
-	/* Need one role byte plus minimum TLS record header (5 bytes) */
-	if (len < 6)
+	/* Need one role byte plus at least one slice length. */
+	if (len < 3)
 	{
 		return 0;
 	}
 
-	/* First byte selects role: input is then either a request (server) or
-	 * response (client) */
+	/* First byte selects role; remaining bytes are sliced into TLS records. */
 	is_server = buf[0] & 1;
 	buf++;
 	len--;
@@ -175,8 +176,7 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
 					 app, NULL, TLS_FLAG_ENCRYPTION_OPTIONAL);
 	tls->set_version(tls, TLS_SUPPORTED_MIN, TLS_SUPPORTED_MAX);
 
-	/* Client must emit ClientHello first so input is interpreted as the
-	 * server's reply */
+	/* Client must emit ClientHello first so input is the server's reply. */
 	if (!is_server)
 	{
 		do
@@ -187,17 +187,38 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
 		while (status == NEED_MORE);
 	}
 
-	status = tls->process(tls, (void*)buf, len);
-
-	/* Drive build() naturally based on process() status */
-	if (status == NEED_MORE)
+	/* Each iteration consumes a 2-byte length prefix + that many input bytes */
+	for (iter = 0; iter < 8 && len >= 2; iter++)
 	{
-		do
+		chunk_len = ((uint16_t)buf[0] << 8) | buf[1];
+		buf += 2;
+		len -= 2;
+		if (chunk_len == 0)
 		{
-			outlen = sizeof(out);
-			status = tls->build(tls, out, &outlen, &msglen);
+			continue;
 		}
-		while (status == NEED_MORE);
+		if (chunk_len > len)
+		{
+			chunk_len = len;
+		}
+
+		status = tls->process(tls, (void*)buf, chunk_len);
+		buf += chunk_len;
+		len -= chunk_len;
+
+		if (status == NEED_MORE)
+		{
+			do
+			{
+				outlen = sizeof(out);
+				status = tls->build(tls, out, &outlen, &msglen);
+			}
+			while (status == NEED_MORE);
+		}
+		if (status == FAILED || status == SUCCESS)
+		{
+			break;
+		}
 	}
 
 	tls->destroy(tls);
