@@ -457,12 +457,18 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
 	if (anchor_cert && (constraints_v || revocation_v))
 	{
 		auth_cfg_t *direct_auth = auth_cfg_create();
+		direct_auth->add(direct_auth, AUTH_RULE_SUBJECT_CERT,
+						 subject->get_ref(subject));
 		if (constraints_v)
 		{
 			if (constraints_v->validate)
 			{
+				/* anchor=FALSE: runs only check_pathlen */
 				constraints_v->validate(constraints_v, subject, anchor_cert,
 										0, FALSE, direct_auth);
+				/* anchor=TRUE: runs check_name_constraints and validation */
+				constraints_v->validate(constraints_v, subject, anchor_cert,
+										0, TRUE, direct_auth);
 			}
 			if (constraints_v->check_lifetime)
 			{
@@ -476,6 +482,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
 			{
 				revocation_v->validate(revocation_v, subject, anchor_cert,
 									   0, FALSE, direct_auth);
+				revocation_v->validate(revocation_v, subject, anchor_cert,
+									   0, TRUE, direct_auth);
 			}
 			if (online && revocation_v->validate_online)
 			{
