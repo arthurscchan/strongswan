@@ -24,6 +24,25 @@ static builder_part_t blob_types[] = {
 	BUILD_BLOB_PGP,
 };
 
+static cred_encoding_type_t pubkey_encodings[] = {
+	PUBKEY_ASN1_DER,
+	PUBKEY_PEM,
+	PUBKEY_SPKI_ASN1_DER,
+	PUBKEY_SSHKEY,
+	PUBKEY_DNSKEY,
+};
+
+static cred_encoding_type_t keyid_types[] = {
+	KEYID_PUBKEY_SHA1,
+	KEYID_PUBKEY_INFO_SHA1,
+};
+
+static signature_scheme_t verify_schemes[] = {
+	SIGN_RSA_EMSA_PKCS1_SHA2_256,
+	SIGN_ECDSA_256,
+	SIGN_ED25519,
+};
+
 int LLVMFuzzerInitialize(int *argc, char ***argv)
 {
 	dbg_default_set_level(-1);
@@ -39,7 +58,8 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
 {
 	public_key_t *key;
 	chunk_t chunk, fp, enc;
-	int i;
+	chunk_t msg = chunk_from_chars('f', 'u', 'z', 'z');
+	int i, j;
 
 	chunk = chunk_create((u_char*)buf, len);
 
@@ -47,17 +67,40 @@ int LLVMFuzzerTestOneInput(const uint8_t *buf, size_t len)
 	{
 		key = lib->creds->create(lib->creds, CRED_PUBLIC_KEY, KEY_ANY,
 								 blob_types[i], chunk, BUILD_END);
-		if (key)
+		if (!key)
 		{
-			key->get_type(key);
-			key->get_keysize(key);
-			key->get_fingerprint(key, KEYID_PUBKEY_INFO_SHA1, &fp);
-			if (key->get_encoding(key, PUBKEY_ASN1_DER, &enc))
+			continue;
+		}
+
+		key->get_type(key);
+		key->get_keysize(key);
+		key->equals(key, key);
+
+		/* All keyid types — exercises hash + fingerprint paths */
+		for (j = 0; j < countof(keyid_types); j++)
+		{
+			key->get_fingerprint(key, keyid_types[j], &fp);
+		}
+
+		/* Every encoding format — exercises serializers */
+		for (j = 0; j < countof(pubkey_encodings); j++)
+		{
+			if (key->get_encoding(key, pubkey_encodings[j], &enc))
 			{
 				chunk_free(&enc);
 			}
-			key->destroy(key);
 		}
+
+		/* Verify a bogus signature for each scheme — exercises the verifier
+		 * dispatch + algorithm-specific verify entry points. The signature
+		 * chunk is just the mutator buffer, so verification fails (or hits
+		 * an algorithm mismatch); we don't care about the result. */
+		for (j = 0; j < countof(verify_schemes); j++)
+		{
+			key->verify(key, verify_schemes[j], NULL, msg, chunk);
+		}
+
+		key->destroy(key);
 	}
 	return 0;
 }
